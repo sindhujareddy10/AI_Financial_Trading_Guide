@@ -82,13 +82,64 @@ if st.session_state.page == "home":
         ]
     )
 
+    # -------------------------------------------------
+    # NEW FEATURE: Automatic Company Recommendation
+    # -------------------------------------------------
+
+    st.header("🤖 Best Company Based on Your Investment")
+
+    if st.button("Find Best Stock To Invest"):
+
+        companies = ["AAPL", "MSFT", "TSLA", "AMZN", "GOOGL"]
+
+        best_stock = None
+        best_return = -999
+
+        for company in companies:
+
+            ticker = yf.Ticker(company)
+            data = ticker.history(period="6mo")
+
+            if not data.empty:
+
+                current_price = data["Close"].iloc[-1]
+                past_price = data["Close"].iloc[0]
+
+                return_pct = ((current_price - past_price) / past_price) * 100
+
+                # Check if user can afford at least 1 share
+                if investment_amount >= current_price:
+
+                    if return_pct > best_return:
+                        best_return = return_pct
+                        best_stock = company
+                        best_price = current_price
+
+        if best_stock:
+
+            shares = investment_amount / best_price
+
+            st.success(
+                f"✅ Recommended Company: **{best_stock}**\n\n"
+                f"Current Price: ${best_price:.2f}\n\n"
+                f"With ${investment_amount} you can buy **{shares:.2f} shares**.\n\n"
+                f"Recent Growth Potential: **{best_return:.2f}%**"
+            )
+
+        else:
+
+            st.error(
+                "❌ Your investment amount is too low to buy these stocks."
+            )
+
+    # -------------------------------------------------
+
     st.header("Step 2: Choose a Stock")
 
     stock_symbol = st.text_input(
         "Enter Stock Symbol (e.g., AAPL, MSFT, TSLA)",
         value="AAPL"
     ).upper()
-    
 
     st.header("Step 3: Stock Analysis")
 
@@ -124,7 +175,6 @@ if st.session_state.page == "home":
             )
 
             st.markdown("### 📈 Trend Analysis")
-            st.markdown(tooltip("Trend"), unsafe_allow_html=True)
 
             ma50 = float(data["MA50"].iloc[-1])
             ma200 = float(data["MA200"].iloc[-1])
@@ -139,7 +189,6 @@ if st.session_state.page == "home":
                 st.info("The stock is moving sideways.")
 
             st.markdown("### 💵 Investment Simulation")
-            st.markdown(tooltip("ROI"), unsafe_allow_html=True)
 
             shares = investment_amount / latest_price
 
@@ -159,39 +208,22 @@ if st.session_state.page == "home":
 
             st.subheader("📊 Stock Price Trend")
 
-            st.caption(
-                "Close = Actual stock price | MA50 = Short-term trend | MA200 = Long-term trend"
-            )
-
             st.line_chart(data[["Close", "MA50", "MA200"]])
 
-            st.markdown("### 📖 How to Read This Chart")
+            # Buy Sell Indicator
+            st.subheader("💡 Current Recommendation")
 
-            st.info("""
-• **Close Price** → Actual stock price each day.
+            if latest_price > ma50 and latest_price > ma200:
+                st.success("📈 Recommendation: BUY")
 
-• **MA50** → Short-term trend.
+            elif latest_price < ma50 and latest_price < ma200:
+                st.error("📉 Recommendation: SELL / AVOID")
 
-• **MA200** → Long-term trend.
-
-Tips for beginners:
-
-• Price above averages → Upward trend  
-• Price below averages → Downward trend  
-• Lines close together → Stable market
-""")
+            else:
+                st.info("⚖ Recommendation: HOLD / WAIT")
 
     except Exception as e:
         st.error(f"Error fetching stock data: {e}")
-    # ----------------- SIMPLE BUY/SELL INDICATOR -----------------
-    st.subheader("💡 Current Recommendation")
-    if latest_price > ma50 and latest_price > ma200:
-        st.success("📈 Recommendation: BUY")
-    elif latest_price < ma50 and latest_price < ma200:
-        st.error("📉 Recommendation: SELL / AVOID")
-    else:
-        st.info("⚖ Recommendation: HOLD / WAIT")
-        
 
 # =====================================================
 # STOCK COMPARISON PAGE
@@ -207,11 +239,6 @@ elif st.session_state.page == "compare":
     stock1 = st.text_input("Stock 1", "AAPL")
     stock2 = st.text_input("Stock 2", "MSFT")
     stock3 = st.text_input("Stock 3", "TSLA")
-
-    risk_level = st.selectbox(
-        "Your Risk Preference",
-        ["Low Risk", "Medium Risk", "High Risk"]
-    )
 
     if st.button("Run Comparison"):
 
@@ -239,8 +266,6 @@ elif st.session_state.page == "compare":
         df = pd.DataFrame(results).T
         st.dataframe(df)
 
-        st.subheader("📈 Price Comparison Chart")
-
         chart_data = pd.DataFrame()
 
         for s in stocks:
@@ -249,44 +274,6 @@ elif st.session_state.page == "compare":
             chart_data[s] = data["Close"]
 
         st.line_chart(chart_data)
-
-        st.markdown("### 📘 Understanding the Comparison")
-
-        st.info("""
-**Profit Potential (%)**
-
-Shows how much the stock price increased over the last year.
-
-Example:
-If Profit Potential = 20%, a $100 investment could become about $120.
-
----
-
-**Risk Level (%)**
-
-Shows how unstable the stock price is.
-
-Higher value = price moves more up and down.
-
----
-
-**Simple Guide**
-
-Low Risk investors → choose lower Risk Level  
-Medium Risk investors → balanced Profit & Risk  
-High Risk investors → highest Profit Potential
-""")
-
-        if risk_level == "Low Risk":
-            recommendation = df["Risk Level (%)"].idxmin()
-
-        elif risk_level == "Medium Risk":
-            recommendation = (df["Profit Potential (%)"] - df["Risk Level (%)"]).idxmax()
-
-        else:
-            recommendation = df["Profit Potential (%)"].idxmax()
-
-        st.success(f"Recommended Stock based on your risk tolerance: **{recommendation}**")
 
 # =====================================================
 # TERMS PAGE
